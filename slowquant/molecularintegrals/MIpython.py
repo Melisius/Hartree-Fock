@@ -50,8 +50,8 @@ def Nrun(basisset):
     """
     return basisset
 
-@jit(flaot64[:,:,:](),nopython=True,cache=True)
-cdef double [:,:,:] R(int l1l2, int m1m2, int n1n2, double Cx, double Cy, double Cz, double Px,  double Py, double Pz, double p, double [:,:,:] R1, double [:,:,:,:] Rbuffer, check=0):
+@jit(flaot64[:,:,:](int32, int32, int32, float64, float64, float64, float64, float64, float64, float64, float64[:,:,:], float64[:,:,:,:], int32),nopython=True,cache=True)
+def R(l1l2, m1m2, n1n2, Cx, Cy, Cz, Px, Py, Pz, p, R1, Rbuffer, check=0):
     cdef double RPC, PCx, PCy, PCz, val
     cdef int t, u, v, n, exclude_from_n
     # check = 0, normal calculation. 
@@ -211,10 +211,10 @@ cdef double [:,:,:] R(int l1l2, int m1m2, int n1n2, double Cx, double Cy, double
 cdef double boys(double m,double T):
     return hyp1f1(m+0.5,m+1.5,-T)/(2.0*m+1.0) 
 
+@jit(float64(),nopython=True,cache=True)
 cdef double elelrep(double p, double q, int l1, int l2, int l3, int l4, int m1, int m2, int m3, int m4, int n1, int n2, int n3, int n4, double N1, double N2, double N3, double N4, double c1, double c2, double c3, double c4, double [:] E1, double [:] E2, double [:] E3, double [:] E4, double [:] E5, double [:] E6, double [:,:,:] Rpre):
-    cdef double N, val, factor
-    cdef int tau, nu, phi, t, u, v
-    cdef double pi = 3.141592653589793238462643383279
+    
+    pi = 3.141592653589793238462643383279
 
     N = N1*N2*N3*N4*c1*c2*c3*c4
     
