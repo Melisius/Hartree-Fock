@@ -1,4 +1,6 @@
 import numpy as np
+import math
+import scipy.misc as scm
 from numba import jit, float64, int32
 from numba.types import Tuple
 
@@ -11,6 +13,7 @@ def nucrep(input):
             if i < j:
                 Vnn += (input[i][0]*input[j][0])/(((input[i][1]-input[j][1])**2+(input[i][2]-input[j][2])**2+(input[i][3]-input[j][3])**2))**0.5
     return Vnn
+
 
 def Nrun(basisset):
     # Normalize primitive functions
@@ -49,6 +52,7 @@ def Nrun(basisset):
                 basisset[k][5][i][0] *= Nc
     """
     return basisset
+
 
 @jit(flaot64[:,:,:](int32, int32, int32, float64, float64, float64, float64, float64, float64, float64, float64[:,:,:], float64[:,:,:,:], int32),nopython=True,cache=True)
 def R(l1l2, m1m2, n1n2, Cx, Cy, Cz, Px, Py, Pz, p, R1, Rbuffer, check=0):
@@ -208,11 +212,13 @@ def R(l1l2, m1m2, n1n2, Cx, Cy, Cz, Px, Py, Pz, p, R1, Rbuffer, check=0):
         
     return R1
     
-cdef double boys(double m,double T):
+    
+def boys(double m,double T):
     return hyp1f1(m+0.5,m+1.5,-T)/(2.0*m+1.0) 
 
-@jit(float64(),nopython=True,cache=True)
-cdef double elelrep(double p, double q, int l1, int l2, int l3, int l4, int m1, int m2, int m3, int m4, int n1, int n2, int n3, int n4, double N1, double N2, double N3, double N4, double c1, double c2, double c3, double c4, double [:] E1, double [:] E2, double [:] E3, double [:] E4, double [:] E5, double [:] E6, double [:,:,:] Rpre):
+
+@jit(float64(float64, float64, int32, int32, int32, int32, int32, int32, int32, int32, int32, int32, int32, int32, float64, float64, float64, float64, float64, float64, float64, float64, float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:,:,:]),nopython=True,cache=True)
+def elelrep(p, q, l1, l2, l3, l4, m1, m2, m3, m4, n1, n2, n3, n4, N1, N2, N3, N4, c1, c2, c3, c4, E1, E2, E3, E4, E5, E6, Rpre):
     
     pi = 3.141592653589793238462643383279
 
@@ -231,10 +237,11 @@ cdef double elelrep(double p, double q, int l1, int l2, int l3, int l4, int m1, 
     val *= 2.0*pi**2.5/(p*q*(p+q)**0.5) 
     return val*N
 
-cdef double E(int i, int j, int t, double Qx, double a, double b, double XPA, double XPB, double XAB):
+
+@jit(float64(int32,int32,int32,float64,float64,float64,float64,float64,float64),nopython=True,cache=True)
+def E(i, j, t, Qx, a, b, XPA, XPB, XAB):
     #McMurchie-Davidson scheme, 9.5.6 and 9.5.7 Helgaker
-    cdef double p, q
-    
+
     p = a + b
     q = a*b/p
     if (t < 0) or (t > (i + j)):
@@ -247,11 +254,10 @@ cdef double E(int i, int j, int t, double Qx, double a, double b, double XPA, do
         return (1.0/(2.0*p))*E(i,j-1,t-1,Qx,a,b,XPA,XPB,XAB) + XPB*E(i,j-1,t,Qx,a,b,XPA,XPB,XAB) + (t+1.0)*E(i,j-1,t+1,Qx,a,b,XPA,XPB,XAB)    
 
 
-cdef double elnuc(double p, int l1, int l2, int m1, int m2, int n1, int n2, double  N1, double N2, double c1, double c2, double Zc, double [:] Ex, double [:] Ey, double [:] Ez, double [:,:,:] R1):
+@jit(float64(float64, int32, int32, int32, int32, int32, int32, float64, float64, float64, float64, float64, float64[:], float64[:], float64[:], float64[:,:,:]),nopython=True,cache=True)
+def elnuc(p, l1, l2, m1, m2, n1, n2, N1, N2, c1, c2, Zc, Ex, Ey, Ez, R1):
     #McMurchie-Davidson scheme    
-    cdef double N, val
-    cdef double pi = 3.141592653589793238462643383279
-    cdef int t, u, v
+    double pi = 3.141592653589793238462643383279
     
     N = N1*N2*c1*c2
 
@@ -264,7 +270,8 @@ cdef double elnuc(double p, int l1, int l2, int m1, int m2, int n1, int n2, doub
     return -val*2.0*pi/p*N
 
 
-cdef Kin(double a, double b, double Ax, double Ay, double Az, double Bx, double By, double Bz, int la, int lb, int ma, int mb, int na, int nb, double N1, double N2, double c1, double c2):
+@jit(Tuple((float64,float64,float64))(float64, float64, float64, float64, float64, float64, float64, float64, int32, int32, int32, int32, int32, int32, float64, float64, float64, float64),nopython=True,cache=True)
+def Kin(a, b, Ax, Ay, Az, Bx, By, Bz, la, lb, ma, mb, na, nb, N1, N2, c1, c2):
     #Obara-Saika scheme, 9.3.40 and 9.3.41 Helgaker
     # Calculates electronic kinetic energy and overlap integrals
     #    at the same time
@@ -312,13 +319,11 @@ cdef Kin(double a, double b, double Ax, double Ay, double Az, double Bx, double 
     return (Tijx[la, lb]*Sy[ma,mb]*Sz[na,nb]+Tijy[ma, mb]*Sx[la,lb]*Sz[na,nb]+Tijz[na, nb]*Sy[ma,mb]*Sx[la,lb])*N, Sx[la, lb]*Sy[ma, mb]*Sz[na, nb]*N
 
 
-cdef double [:,:] Overlap(double a, double b, int la, int lb, double Ax, double Bx):
+@jit(float64[:,:](float64,float64,int32,int32,float64,float64),nopython=True,cache=True)
+def Overlap(a, b, la, lb, Ax, Bx):
     #Obara-Saika scheme, 9.3.8 and 9.3.9 Helgaker
     #Used in Kin integral!
-    cdef double p, u, Px, S00
-    cdef double pi = 3.141592653589793238462643383279
-    cdef double [:,:] Sij
-    cdef int i, j
+    pi = 3.141592653589793238462643383279
 
     p = a + b
     u = a*b/p

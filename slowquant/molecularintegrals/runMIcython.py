@@ -1,5 +1,5 @@
 import numpy as np
-from slowquant.molecularintegrals.MIpython import 
+from slowquant.molecularintegrals.MIpython import R, elelrep, E, elnuc, kin
 from numba import jit, float64, int32
 from numba.types import Tuple
 
