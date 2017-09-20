@@ -1,10 +1,10 @@
 import numpy as np
-from slowquant.molecularintegrals.MIpython import R, elelrep, E, elnuc, kin
-from numba import jit, float64, int32
+from slowquant.molecularintegrals.MIpython import R, elelrep, E, elnuc, Kin
+from numba import jit, float64, int64, prange
 from numba.types import Tuple
 
-@jit(tuple((float64[:,:], float64[:,:], float64[:,:], float64[:,:,:,:]))(int32[:,:],float64[:,:],int32[:,:],float64[:,:]),nopython=True,cache=True)
-def runIntegrals(basisidx, basisfloat, basisint, input):
+@jit(Tuple((float64[:,:], float64[:,:], float64[:,:], float64[:,:,:,:]))(int64[:,:],float64[:,:],int64[:,:],float64[:,:]),nopython=True,cache=True)
+def IntegralsNumba(basisidx, basisfloat, basisint, molecule):
     # Array to store R values, only created once if created here
     R1buffer = np.zeros((4*np.max(basisint)+1,4*np.max(basisint)+1,4*np.max(basisint)+1))
     Rbuffer = np.zeros((4*np.max(basisint)+1,4*np.max(basisint)+1,4*np.max(basisint)+1,3*4*np.max(basisint)+1))
@@ -63,13 +63,13 @@ def runIntegrals(basisidx, basisfloat, basisint, input):
                     for v in range(n1+n2+1):
                         Ez[v] = E3arr[k,l,i-basisidx[k,1],j-basisidx[l,1],v] = E(n1,n2,v,Az-Bz,a,b,Pz-Az,Pz-Bz,Az-Bz)
 
-                    for atom in range(1, len(input)):
-                        Zc = input[atom,0]
-                        Cx = input[atom,1]
-                        Cy = input[atom,2]
-                        Cz = input[atom,3]
+                    for atom in range(1, len(molecule)):
+                        Zc = molecule[atom,0]
+                        Cx = molecule[atom,1]
+                        Cy = molecule[atom,2]
+                        Cz = molecule[atom,3]
                         RPC = ((Px-Cx)**2+(Py-Cy)**2+(Pz-Cz)**2)**0.5
-                        R1 = R(l1+l2, m1+m2, n1+n2, Cx, Cy, Cz, Px, Py, Pz, p, R1buffer, Rbuffer)
+                        R1 = R(l1+l2, m1+m2, n1+n2, Cx, Cy, Cz, Px, Py, Pz, p, R1buffer, Rbuffer, 0)
 
                         calc += elnuc(p, l1, l2, m1, m2, n1, n2, N1, N2, c1, c2, Zc, Ex, Ey, Ez, R1)
                     calct, calct2 = Kin(a, b, Ax, Ay, Az, Bx, By, Bz, l1, l2, m1, m2, n1, n2, N1, N2, c1, c2)
@@ -152,7 +152,7 @@ def runIntegrals(basisidx, basisfloat, basisint, input):
                                         
                                         alpha = p*q/(p+q)
                                         
-                                        R1 = R(l1+l2+l3+l4, m1+m2+m3+m4, n1+n2+n3+n4, Qx, Qy, Qz, Px, Py, Pz, alpha, R1buffer, Rbuffer)
+                                        R1 = R(l1+l2+l3+l4, m1+m2+m3+m4, n1+n2+n3+n4, Qx, Qy, Qz, Px, Py, Pz, alpha, R1buffer, Rbuffer, 0)
                                         calc += elelrep(p,q,l1, l2, l3, l4, m1, m2, m3, m4, n1, n2, n3, n4, N1, N2, N3, N4, c1, c2, c3, c4, E1, E2, E3, E4, E5, E6, R1)
                             
                         ERI[mu,nu,lam,sig] = ERI[nu,mu,lam,sig] = ERI[mu,nu,sig,lam] = ERI[nu,mu,sig,lam] = ERI[lam,sig,mu,nu] = ERI[sig,lam,mu,nu] = ERI[lam,sig,nu,mu] = ERI[sig,lam,nu,mu] = calc            

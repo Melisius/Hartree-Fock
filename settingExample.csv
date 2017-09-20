@@ -1,4 +1,4 @@
-basisset;4-31G
+basisset;STO2G
 Initial method;HF
 SCF Energy Threshold;12
 SCF RMSD Threshold;12

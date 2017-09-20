@@ -9,16 +9,16 @@ import slowquant.mollerplesset.runMPn as MP
 import slowquant.qfit.Qfit as QF
 import slowquant.geometryoptimization.GeometryOptimization as GO
 import slowquant.configurationinteraction.runCI as CI
-import slowquant .coupledcluster.runCC as CC
+#import slowquant .coupledcluster.runCC as CC
 import slowquant.bomd.runBOMD as MD
 
-def run(inputname, settingsname):
+def run(moleculename, settingsname):
     settings = np.genfromtxt('slowquant/Standardsettings.csv', delimiter = ';', dtype='str')
     set = {}
     for i in range(len(settings)):
         set.update({settings[i][0]:settings[i][1]})
     
-    input = np.genfromtxt(str(inputname), delimiter=';')
+    molecule = np.genfromtxt(str(moleculename), delimiter=';')
     results = {}
     
     output = open('out.txt', 'w')
@@ -30,59 +30,59 @@ def run(inputname, settingsname):
     output.write('\n \n')
 
     output.write('Inputfile: \n')
-    for i in range(0, len(input)):
+    for i in range(0, len(molecule)):
         for j in range(0, 4):
-            output.write("   {: 12.8e}".format(input[i,j]))
+            output.write("   {: 12.8e}".format(molecule[i,j]))
             output.write("\t \t")
         output.write('\n')
     output.write('\n \n')
     output.close()
     
     if set['Initial method'] == 'BOMD':
-        results = MD.runBOMD(input, set, results)
+        results = MD.runBOMD(molecule, set, results)
     
     elif set['Initial method'] == 'UHF':
-        basis = BS.bassiset(input, set)
+        basis = BS.bassiset(molecule, set)
         start = time.time()
-        results = MI.runIntegrals(input, basis, set, results)
+        results = MI.runIntegrals(molecule, basis, set, results)
         print(time.time()-start, 'INTEGRALS')
         
         start = time.time()
-        results = HF.runHartreeFock(input, set, results)
+        results = HF.runHartreeFock(molecule, set, results)
         print(time.time()-start, 'UHF')
     
     elif set['Initial method'] == 'HF':
         if set['GeoOpt'] == 'Yes':
-            input, results = GO.runGO(input, set, results)
+            molecule, results = GO.runGO(molecule, set, results)
         
-        basis = BS.bassiset(input, set)
+        basis = BS.bassiset(molecule, set)
         
         start = time.time()
-        results = MI.runIntegrals(input, basis, set, results)
+        results = MI.runIntegrals(molecule, basis, set, results)
         print(time.time()-start, 'INTEGRALS')
         
         start = time.time()
-        results = HF.runHartreeFock(input, set, results)
+        results = HF.runHartreeFock(molecule, set, results)
         print(time.time()-start, 'HF')
         
         start = time.time()
-        results = prop.runprop(basis, input, set, results)
+        results = prop.runprop(basis, molecule, set, results)
         print(time.time()-start, 'PROPERTIES')
         
         start = time.time()
-        results = MP.runMPn(input, results, set)
+        results = MP.runMPn(molecule, results, set)
         print(time.time()-start, 'Perturbation')
         
         start = time.time()
-        results = QF.runQfit(basis, input, set, results)
+        results = QF.runQfit(basis, molecule, set, results)
         print(time.time()-start, 'QFIT')
         
         start = time.time()
-        results = CI.runCI(set, results, input)
+        results = CI.runCI(set, results, molecule)
         print(time.time()-start, 'CI')
         
         start = time.time()
-        results = CC.runCC(input, set, results)
+        #results = CC.runCC(molecule, set, results)
         print(time.time()-start, 'CC')
         
     return results

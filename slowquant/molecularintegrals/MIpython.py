@@ -1,17 +1,17 @@
 import numpy as np
 import math
 import scipy.misc as scm
-from numba import jit, float64, int32
+from numba import jit, float64, int64
 from numba.types import Tuple
 
 ##INTEGRAL FUNCTIONS
-def nucrep(input):
+def nucrep(molecule):
     #Classical nucleus nucleus repulsion
     Vnn = 0
-    for i in range(1, len(input)):
-        for j in range(1, len(input)):
+    for i in range(1, len(molecule)):
+        for j in range(1, len(molecule)):
             if i < j:
-                Vnn += (input[i][0]*input[j][0])/(((input[i][1]-input[j][1])**2+(input[i][2]-input[j][2])**2+(input[i][3]-input[j][3])**2))**0.5
+                Vnn += (molecule[i][0]*molecule[j][0])/(((molecule[i][1]-molecule[j][1])**2+(molecule[i][2]-molecule[j][2])**2+(molecule[i][3]-molecule[j][3])**2))**0.5
     return Vnn
 
 
@@ -53,11 +53,41 @@ def Nrun(basisset):
     """
     return basisset
 
+@jit(float64(float64),nopython=True,cache=True)
+def factorial2(n):
+    n_range = int(n)
+    out = 1.0
+    if n > 0:
+        for i in range(0, int(n_range+1)//2):
+            out = out*(n-2*i)
+    return out
 
-@jit(flaot64[:,:,:](int32, int32, int32, float64, float64, float64, float64, float64, float64, float64, float64[:,:,:], float64[:,:,:,:], int32),nopython=True,cache=True)
+
+@jit(float64(float64,float64),nopython=True,cache=True)
+def boys(m,z):
+    pi = 3.141592653589793238462643383279
+    if z > 25:
+        # Long range approximation
+        F = factorial2(2*m-1)/(2**(m+1))*(pi/(z**(2*m+1)))**0.5
+    elif z == 0.0:
+        # special case of T = 0
+        return 1.0/(2.0*m+1.0)
+    else:
+        F = 0.0
+        temp1 = factorial2(2*m-1)
+        threshold = 10**-10 # 10**-10 is taken from purple book
+        for i in range(0, 1000):
+            Fcheck = F
+            F += (temp1*(2*z)**i)/(factorial2(2*m+2*i+1))
+            Fcheck -= F
+            if abs(Fcheck) < threshold:
+                break
+        F *= np.exp(-z)
+    return F
+
+
+@jit(float64[:,:,:](int64, int64, int64, float64, float64, float64, float64, float64, float64, float64, float64[:,:,:], float64[:,:,:,:], int64),nopython=True,cache=True)
 def R(l1l2, m1m2, n1n2, Cx, Cy, Cz, Px, Py, Pz, p, R1, Rbuffer, check=0):
-    cdef double RPC, PCx, PCy, PCz, val
-    cdef int t, u, v, n, exclude_from_n
     # check = 0, normal calculation. 
     # check = 1, derivative calculation
     
@@ -212,12 +242,8 @@ def R(l1l2, m1m2, n1n2, Cx, Cy, Cz, Px, Py, Pz, p, R1, Rbuffer, check=0):
         
     return R1
     
-    
-def boys(double m,double T):
-    return hyp1f1(m+0.5,m+1.5,-T)/(2.0*m+1.0) 
 
-
-@jit(float64(float64, float64, int32, int32, int32, int32, int32, int32, int32, int32, int32, int32, int32, int32, float64, float64, float64, float64, float64, float64, float64, float64, float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:,:,:]),nopython=True,cache=True)
+@jit(float64(float64, float64, int64, int64, int64, int64, int64, int64, int64, int64, int64, int64, int64, int64, float64, float64, float64, float64, float64, float64, float64, float64, float64[:], float64[:], float64[:], float64[:], float64[:], float64[:], float64[:,:,:]),nopython=True,cache=True)
 def elelrep(p, q, l1, l2, l3, l4, m1, m2, m3, m4, n1, n2, n3, n4, N1, N2, N3, N4, c1, c2, c3, c4, E1, E2, E3, E4, E5, E6, Rpre):
     
     pi = 3.141592653589793238462643383279
@@ -238,7 +264,7 @@ def elelrep(p, q, l1, l2, l3, l4, m1, m2, m3, m4, n1, n2, n3, n4, N1, N2, N3, N4
     return val*N
 
 
-@jit(float64(int32,int32,int32,float64,float64,float64,float64,float64,float64),nopython=True,cache=True)
+@jit(float64(int64,int64,int64,float64,float64,float64,float64,float64,float64),nopython=True,cache=True)
 def E(i, j, t, Qx, a, b, XPA, XPB, XAB):
     #McMurchie-Davidson scheme, 9.5.6 and 9.5.7 Helgaker
 
@@ -254,10 +280,10 @@ def E(i, j, t, Qx, a, b, XPA, XPB, XAB):
         return (1.0/(2.0*p))*E(i,j-1,t-1,Qx,a,b,XPA,XPB,XAB) + XPB*E(i,j-1,t,Qx,a,b,XPA,XPB,XAB) + (t+1.0)*E(i,j-1,t+1,Qx,a,b,XPA,XPB,XAB)    
 
 
-@jit(float64(float64, int32, int32, int32, int32, int32, int32, float64, float64, float64, float64, float64, float64[:], float64[:], float64[:], float64[:,:,:]),nopython=True,cache=True)
+@jit(float64(float64, int64, int64, int64, int64, int64, int64, float64, float64, float64, float64, float64, float64[:], float64[:], float64[:], float64[:,:,:]),nopython=True,cache=True)
 def elnuc(p, l1, l2, m1, m2, n1, n2, N1, N2, c1, c2, Zc, Ex, Ey, Ez, R1):
     #McMurchie-Davidson scheme    
-    double pi = 3.141592653589793238462643383279
+    pi = 3.141592653589793238462643383279
     
     N = N1*N2*c1*c2
 
@@ -270,14 +296,36 @@ def elnuc(p, l1, l2, m1, m2, n1, n2, N1, N2, c1, c2, Zc, Ex, Ey, Ez, R1):
     return -val*2.0*pi/p*N
 
 
-@jit(Tuple((float64,float64,float64))(float64, float64, float64, float64, float64, float64, float64, float64, int32, int32, int32, int32, int32, int32, float64, float64, float64, float64),nopython=True,cache=True)
+@jit(float64[:,:](float64,float64,int64,int64,float64,float64),nopython=True,cache=True)
+def Overlap(a, b, la, lb, Ax, Bx):
+    #Obara-Saika scheme, 9.3.8 and 9.3.9 Helgaker
+    #Used in Kin integral!
+    pi = 3.141592653589793238462643383279
+
+    p = a + b
+    u = a*b/p
+    
+    Px = (a*Ax+b*Bx)/p
+    
+    S00 = (pi/p)**0.5 * np.exp(-u*(Ax-Bx)**2)
+    
+    Sij = np.zeros((la+2,lb+2))
+    Sij[0,0] = S00
+    
+    
+    for i in range(0, la+1):
+        for j in range(0, lb+1):
+            Sij[i+1,j] = (Px-Ax)*Sij[i,j] + 1.0/(2.0*p) * (i*Sij[i-1,j] + j*Sij[i,j-1])
+            Sij[i,j+1] = (Px-Bx)*Sij[i,j] + 1.0/(2.0*p) * (i*Sij[i-1,j] + j*Sij[i,j-1])
+    
+    return Sij
+
+
+@jit(Tuple((float64,float64))(float64, float64, float64, float64, float64, float64, float64, float64, int64, int64, int64, int64, int64, int64, float64, float64, float64, float64),nopython=True,cache=True)
 def Kin(a, b, Ax, Ay, Az, Bx, By, Bz, la, lb, ma, mb, na, nb, N1, N2, c1, c2):
     #Obara-Saika scheme, 9.3.40 and 9.3.41 Helgaker
     # Calculates electronic kinetic energy and overlap integrals
     #    at the same time
-    cdef double p, N, Px, Py, Pz, XPA, YPA, ZPA, XPB, YPB, ZPB
-    cdef double [:,:] Tijx, Tijy, Tijz, Sx, Sy, Sz
-    cdef int i, j
     
     p = a + b
     N = N1*N2*c1*c2
@@ -317,31 +365,6 @@ def Kin(a, b, Ax, Ay, Az, Bx, By, Bz, la, lb, ma, mb, na, nb, N1, N2, c1, c2):
             Tijz[i,j+1] = ZPB*Tijz[i,j] + 1.0/(2.0*p)*(i*Tijz[i-1,j]+j*Tijz[i,j-1]) + a/p*(2.0*b*Sz[i,j+1] - j*Sz[i,j-1])
     
     return (Tijx[la, lb]*Sy[ma,mb]*Sz[na,nb]+Tijy[ma, mb]*Sx[la,lb]*Sz[na,nb]+Tijz[na, nb]*Sy[ma,mb]*Sx[la,lb])*N, Sx[la, lb]*Sy[ma, mb]*Sz[na, nb]*N
-
-
-@jit(float64[:,:](float64,float64,int32,int32,float64,float64),nopython=True,cache=True)
-def Overlap(a, b, la, lb, Ax, Bx):
-    #Obara-Saika scheme, 9.3.8 and 9.3.9 Helgaker
-    #Used in Kin integral!
-    pi = 3.141592653589793238462643383279
-
-    p = a + b
-    u = a*b/p
-    
-    Px = (a*Ax+b*Bx)/p
-    
-    S00 = (pi/p)**0.5 * np.exp(-u*(Ax-Bx)**2)
-    
-    Sij = np.zeros((la+2,lb+2))
-    Sij[0,0] = S00
-    
-    
-    for i in range(0, la+1):
-        for j in range(0, lb+1):
-            Sij[i+1,j] = (Px-Ax)*Sij[i,j] + 1.0/(2.0*p) * (i*Sij[i-1,j] + j*Sij[i,j-1])
-            Sij[i,j+1] = (Px-Bx)*Sij[i,j] + 1.0/(2.0*p) * (i*Sij[i-1,j] + j*Sij[i,j-1])
-    
-    return Sij
 
 
 

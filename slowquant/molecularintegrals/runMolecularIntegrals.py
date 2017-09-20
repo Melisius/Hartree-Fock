@@ -1,14 +1,14 @@
 import numpy as np
 import copy
 import time
-from slowquant.molecularintegrals.runMIcython import runIntegrals
-from slowquant.molecularintegrals.MIpython import nucrep, nucdiff, Nrun, Ndiff1, Ndiff2, u_ObaraSaika
+from slowquant.molecularintegrals.runMIcython import IntegralsNumba
+from slowquant.molecularintegrals.MIpython import nucrep
 
 ##CALC OF INTEGRALS
-def runIntegrals(input, basis, settings, results):
+def runIntegrals(molecule, basis, settings, results):
     # Nuclear-nuclear repulsion
     VNN = np.zeros(1)
-    VNN[0] = nucrep(input)
+    VNN[0] = nucrep(molecule)
     
     # Reform basisset information
     
@@ -21,7 +21,7 @@ def runIntegrals(input, basis, settings, results):
         basisidx[i,0] = basis[i][4]
         basisidx[i,1] = startidx
         startidx     += basisidx[i,0]
-    basisidx = basisidx.astype(np.int32)
+    basisidx = basisidx.astype(np.int64)
     
     basisfloat = np.zeros((np.sum(basisidx[:,0]),6))
     basisint   = np.zeros((np.sum(basisidx[:,0]),3))
@@ -42,9 +42,10 @@ def runIntegrals(input, basis, settings, results):
             
             idxfi += 1
     
-    basisint = basisint.astype(np.int32)
+    basisint = basisint.astype(np.int64)
+    basisidx = basisidx.astype(np.int64)
     
-    Na, S, T, ERI = runIntegrals(basisidx, basisfloat, basisint, input)
+    Na, S, T, ERI = IntegralsNumba(basisidx, basisfloat, basisint, molecule)
 
     results['VNN'] = VNN
     results['VNe'] = Na
